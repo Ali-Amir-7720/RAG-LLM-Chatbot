@@ -18,7 +18,7 @@ from app.schemas import (
     MessageRegenerateRequest,
 )
 from app.services.embeddings import get_embedding
-from app.services.llm import generate_chat_reply_stream, generate_conversation_title
+from app.services.llm import generate_conversation_title, stream_model_response
 
 
 # Router for conversation-scoped messages (creation and history retrieval)
@@ -43,12 +43,16 @@ async def stream_rag_llm_response(
     """
     # 1. Fetch system prompt and model_name for the conversation
     conv_res = await session.execute(
-        text("SELECT model_name, system_prompt FROM conversations WHERE id = :id"),
+        text(
+            "SELECT model_name, system_prompt, generation_config "
+            "FROM conversations WHERE id = :id"
+        ),
         {"id": conversation_id},
     )
     conv_row = conv_res.mappings().one()
     model_name = conv_row["model_name"]
     system_prompt = conv_row["system_prompt"]
+    generation_config = conv_row["generation_config"] or {}
 
     # 2. Get user message content
     msg_res = await session.execute(
@@ -125,11 +129,17 @@ async def stream_rag_llm_response(
     )
     history = [{"role": r["role"], "content": r["content"]} for r in hist_res.mappings().all()]
 
-    # 5. Stream LLM tokens
+    # 5. Stream model tokens (Hugging Face integration placeholder)
     start_time = time.time()
     assistant_content_chunks = []
     
-    async for chunk in generate_chat_reply_stream(system_prompt, history, retrieved_chunks, model_name):
+    async for chunk in stream_model_response(
+        system_prompt,
+        history,
+        retrieved_chunks,
+        model_name,
+        generation_config,
+    ):
         yield chunk
         if chunk.startswith("data: "):
             try:

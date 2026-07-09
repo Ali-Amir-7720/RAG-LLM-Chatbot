@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change_me_to_a_long_random_secret_in_production"
     jwt_access_token_ttl_seconds: int = 900
     refresh_token_ttl_days: int = 30
+    huggingface_api_token: str | None = None
+    huggingface_api_url: str = "https://api-inference.huggingface.co/models"
 
     model_config = SettingsConfigDict(
         env_file=".env",
