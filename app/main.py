@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 
 from app.config import get_settings
 from app.db import check_database, close_database
-from app.routers import users
+from app.routers import auth, conversations, documents, messages, users
 
 
 settings = get_settings()
@@ -22,7 +22,16 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-app.include_router(users.router)
+
+api_router = APIRouter(prefix="/api/v1")
+api_router.include_router(users.router)
+api_router.include_router(auth.router)
+api_router.include_router(conversations.router)
+api_router.include_router(messages.router)
+api_router.include_router(messages.messages_action_router)
+api_router.include_router(documents.router)
+
+app.include_router(api_router)
 
 
 @app.get("/")

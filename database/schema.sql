@@ -65,6 +65,20 @@ CREATE TRIGGER update_user_sessions_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
+-- 3. PASSWORD RESET TOKENS
+-- ============================================================
+CREATE TABLE password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    is_used BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_reset_token_hash ON password_reset_tokens(token_hash);
+
+
+-- ============================================================
 -- 3. EMBEDDING MODELS
 -- ============================================================
 -- Registry of models available to the system. Note: chunk_embeddings.embedding
@@ -112,9 +126,11 @@ CREATE TABLE messages (
     generation_time REAL,
     is_helpful BOOLEAN,
     feedback_text TEXT,
+    search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_messages_conv_created ON messages(conversation_id, created_at);
+CREATE INDEX idx_messages_search ON messages USING GIN (search_vector);
 
 -- ============================================================
 -- 6. DOCUMENTS
