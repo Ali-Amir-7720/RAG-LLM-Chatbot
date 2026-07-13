@@ -524,15 +524,30 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
         </Button>
 
         <Divider my="md" />
-        <Group gap="xs" className="db-chip" justify="space-between">
-          <Group gap="xs">
-            <IconDatabase size={15} />
-            <Text size="xs">Rag-LLM connected</Text>
-          </Group>
-          <Button variant="subtle" size="compact-xs" color="gray" leftSection={<IconLogout size={14} />} onClick={onLogout}>
-            Logout
-          </Button>
-        </Group>
+        <Stack gap="xs" className="sidebar-footer">
+          <Box className="sidebar-footer-card">
+            <Group gap="xs" justify="space-between" align="center">
+              <Group gap="xs">
+                <IconDatabase size={15} />
+                <Text size="xs" fw={600}>Rag-LLM connected</Text>
+              </Group>
+              <Badge variant="outline" size="sm" color="gray">
+                Online
+              </Badge>
+            </Group>
+          </Box>
+          <Box className="sidebar-footer-card logout-card">
+            <Group justify="space-between" align="center">
+              <Box>
+                <Text size="xs" fw={700}>Session</Text>
+                <Text size="xs" c="dimmed">Sign out securely</Text>
+              </Box>
+              <Button variant="default" size="compact-sm" leftSection={<IconLogout size={14} />} onClick={onLogout}>
+                Logout
+              </Button>
+            </Group>
+          </Box>
+        </Stack>
         </>
         )}
       </Box>
