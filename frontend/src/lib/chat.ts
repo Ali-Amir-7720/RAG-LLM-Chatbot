@@ -1,9 +1,11 @@
 import { API_BASE_URL, apiFetch } from './api'
 import type { Conversation, Message } from './types'
 
-export function listConversations(opts?: { archived?: boolean }) {
+export function listConversations(opts?: { archived?: boolean; limit?: number; offset?: number }) {
   const archived = opts?.archived ?? false
-  return apiFetch<Conversation[]>(`/conversations?archived=${archived}`)
+  const limit = opts?.limit ?? 10
+  const offset = opts?.offset ?? 0
+  return apiFetch<Conversation[]>(`/conversations?archived=${archived}&limit=${limit}&offset=${offset}`)
 }
 
 export function createConversation(input: { title?: string; model_name: string }) {
@@ -14,6 +16,19 @@ export function createConversation(input: { title?: string; model_name: string }
       model_name: input.model_name,
       generation_config: {},
     }),
+  })
+}
+
+export function renameConversation(conversationId: string, title: string) {
+  const params = new URLSearchParams({ title })
+  return apiFetch<Conversation>(`/conversations/${conversationId}?${params.toString()}`, {
+    method: 'PATCH',
+  })
+}
+
+export function deleteConversation(conversationId: string) {
+  return apiFetch<void>(`/conversations/${conversationId}`, {
+    method: 'DELETE',
   })
 }
 

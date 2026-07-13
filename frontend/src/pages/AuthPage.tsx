@@ -18,7 +18,11 @@ import { IconArrowRight, IconDatabase, IconLock, IconMessageCircle, IconSparkles
 import { useNavigate } from 'react-router-dom'
 import { login, signup } from '../lib/auth'
 
-export function AuthPage() {
+type AuthPageProps = {
+  onAuthSuccess: () => void
+}
+
+export function AuthPage({ onAuthSuccess }: AuthPageProps) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -36,6 +40,7 @@ export function AuthPage() {
         await signup({ username, email, password })
         notifications.show({ title: 'Account created', message: 'You are now signed in.' })
       }
+      onAuthSuccess()
       nav('/')
     } catch (e) {
       notifications.show({
