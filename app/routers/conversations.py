@@ -1,5 +1,7 @@
 from __future__ import annotations
+from __future__ import annotations
 
+import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -15,6 +17,7 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
 @router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
 async def create_conversation(
     payload: ConversationCreateRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -28,7 +31,7 @@ async def create_conversation(
         text(
             """
             INSERT INTO conversations (user_id, title, model_name, system_prompt, generation_config)
-            VALUES (:user_id, :title, :model_name, :system_prompt, :generation_config)
+            VALUES (:user_id, :title, :model_name, :system_prompt, CAST(:generation_config AS jsonb))
             RETURNING id, user_id, title, model_name, system_prompt, generation_config, is_archived, created_at, updated_at
             """
         ),
@@ -37,7 +40,7 @@ async def create_conversation(
             "title": title,
             "model_name": payload.model_name,
             "system_prompt": payload.system_prompt,
-            "generation_config": payload.generation_config,
+            "generation_config": json.dumps(payload.generation_config),
         },
     )
     await session.commit()

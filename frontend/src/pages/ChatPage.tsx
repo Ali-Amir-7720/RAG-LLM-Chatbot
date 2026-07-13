@@ -524,9 +524,14 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
         </Button>
 
         <Divider my="md" />
-        <Group gap="xs" className="db-chip">
-          <IconDatabase size={15} />
-          <Text size="xs">Rag-LLM connected</Text>
+        <Group gap="xs" className="db-chip" justify="space-between">
+          <Group gap="xs">
+            <IconDatabase size={15} />
+            <Text size="xs">Rag-LLM connected</Text>
+          </Group>
+          <Button variant="subtle" size="compact-xs" color="gray" leftSection={<IconLogout size={14} />} onClick={onLogout}>
+            Logout
+          </Button>
         </Group>
         </>
         )}
