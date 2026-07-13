@@ -125,6 +125,16 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
     setLoadingConvs(true)
     try {
       const data = await listConversations({ archived: false, limit: CONVERSATION_PAGE_SIZE, offset: 0 })
+
+      if (data.length === 0) {
+        // Brand-new user: nothing to select, so create their first conversation
+        // instead of leaving the composer stuck on "Create a conversation first...".
+        await onNewConversation()
+        setConversationOffset(0)
+        setHasMoreConvs(false)
+        return
+      }
+
       setConvs(data)
       setConversationOffset(data.length)
       setHasMoreConvs(data.length === CONVERSATION_PAGE_SIZE)
