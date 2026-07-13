@@ -368,7 +368,7 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
             </Tooltip>
             {!railCollapsed && <Box>
               <Title order={3} className="brand-title">
-                Fieldforce
+                RAG-LLM
               </Title>
               <Text size="xs" c="dimmed">
                 RAG workspace
