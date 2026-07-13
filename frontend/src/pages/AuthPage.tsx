@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Anchor,
+  Badge,
   Box,
   Button,
   Card,
@@ -13,8 +14,9 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { login, signup } from '../lib/auth'
+import { IconArrowRight, IconDatabase, IconLock, IconMessageCircle, IconSparkles } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
+import { login, signup } from '../lib/auth'
 
 export function AuthPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
@@ -47,80 +49,101 @@ export function AuthPage() {
   }
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: 24,
-      }}
-    >
-      <Container size={420} w="100%">
-        <Card
-          radius="lg"
-          p="xl"
-          withBorder
-          style={{
-            backdropFilter: 'blur(10px)',
-            background: 'rgba(255,255,255,0.06)',
-            borderColor: 'rgba(255,255,255,0.14)',
-          }}
-        >
-          <Stack gap="md">
-            <Title order={2} c="white">
-              Fieldforce RAG Chat
-            </Title>
-            <Text c="gray.3" size="sm">
-              Sign in to start conversations, upload documents, and chat with grounded answers.
-            </Text>
+    <Box className="auth-shell">
+      <Container size="lg" w="100%">
+        <Box className="auth-grid">
+          <Stack className="auth-copy" gap="xl">
+            <Badge className="status-badge" leftSection={<IconDatabase size={14} />}>
+              PostgreSQL + pgvector connected
+            </Badge>
 
-            {mode === 'signup' && (
-              <TextInput
-                label="Username"
-                value={username}
-                onChange={(e) => setUsername(e.currentTarget.value)}
-                placeholder="yourname"
-                required
-              />
-            )}
-
-            <TextInput
-              label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
-              placeholder="you@example.com"
-              required
-            />
-
-            <PasswordInput
-              label="Password"
-              value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
-              placeholder="••••••••"
-              required
-            />
-
-            <Button loading={loading} onClick={onSubmit} fullWidth>
-              {mode === 'login' ? 'Login' : 'Create account'}
-            </Button>
-
-            <Group justify="space-between">
-              <Anchor
-                component="button"
-                type="button"
-                onClick={() => setMode((m) => (m === 'login' ? 'signup' : 'login'))}
-                size="sm"
-              >
-                {mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Login'}
-              </Anchor>
-              <Text c="dimmed" size="xs">
-                API: <code style={{ color: 'white' }}>/api/v1</code>
+            <Stack gap="md">
+              <Title className="auth-title">Fieldforce RAG Chat</Title>
+              <Text className="auth-subtitle">
+                A focused workspace for asking questions, keeping conversation context, and grounding answers in your own documents.
               </Text>
+            </Stack>
+
+            <Group gap="sm" className="feature-row">
+              <Box className="feature-pill">
+                <IconMessageCircle size={18} />
+                <span>Threaded chat</span>
+              </Box>
+              <Box className="feature-pill">
+                <IconSparkles size={18} />
+                <span>Streaming answers</span>
+              </Box>
+              <Box className="feature-pill">
+                <IconLock size={18} />
+                <span>Private sessions</span>
+              </Box>
             </Group>
           </Stack>
-        </Card>
+
+          <Card className="auth-panel" withBorder>
+            <Stack gap="lg">
+              <Stack gap={4}>
+                <Title order={2}>{mode === 'login' ? 'Sign in' : 'Create account'}</Title>
+                <Text c="dimmed" size="sm">
+                  {mode === 'login'
+                    ? 'Continue to your conversations and document workspace.'
+                    : 'Create a workspace account to start testing the RAG flow.'}
+                </Text>
+              </Stack>
+
+              {mode === 'signup' && (
+                <TextInput
+                  label="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.currentTarget.value)}
+                  placeholder="ali"
+                  required
+                />
+              )}
+
+              <TextInput
+                label="Email"
+                value={email}
+                onChange={(e) => setEmail(e.currentTarget.value)}
+                placeholder="you@example.com"
+                required
+              />
+
+              <PasswordInput
+                label="Password"
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+                placeholder="Enter your password"
+                required
+              />
+
+              <Button
+                loading={loading}
+                onClick={onSubmit}
+                fullWidth
+                rightSection={<IconArrowRight size={17} />}
+                disabled={!email.trim() || !password.trim() || (mode === 'signup' && !username.trim())}
+              >
+                {mode === 'login' ? 'Login' : 'Create account'}
+              </Button>
+
+              <Group justify="space-between" gap="sm">
+                <Anchor
+                  component="button"
+                  type="button"
+                  onClick={() => setMode((m) => (m === 'login' ? 'signup' : 'login'))}
+                  size="sm"
+                >
+                  {mode === 'login' ? 'Need an account?' : 'Already have an account?'}
+                </Anchor>
+                <Text c="dimmed" size="xs">
+                  API /api/v1
+                </Text>
+              </Group>
+            </Stack>
+          </Card>
+        </Box>
       </Container>
     </Box>
   )
 }
-

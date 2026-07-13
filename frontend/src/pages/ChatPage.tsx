@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActionIcon,
   Badge,
@@ -7,26 +7,66 @@ import {
   Card,
   Divider,
   Group,
+  Loader,
   ScrollArea,
   Stack,
   Text,
-  TextInput,
+  Textarea,
   Title,
+  Tooltip,
 } from '@mantine/core'
-import { IconLogout, IconPlus, IconSend } from '@tabler/icons-react'
+import {
+  IconDatabase,
+  IconLogout,
+  IconMessage,
+  IconPlus,
+  IconRefresh,
+  IconSearch,
+  IconSend,
+  IconSparkles,
+} from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { createConversation, listConversations, listMessages, sendMessage } from '../lib/chat'
+import { useNavigate } from 'react-router-dom'
+import { createConversation, listConversations, listMessages, streamMessage } from '../lib/chat'
 import type { Conversation, Message } from '../lib/types'
 import { logout } from '../lib/auth'
-import { useNavigate } from 'react-router-dom'
+
+type LocalMessage = Message & { pending?: boolean }
+
+function formatRelative(value: string) {
+  const date = new Date(value)
+  const diff = Date.now() - date.getTime()
+  const minutes = Math.max(1, Math.round(diff / 60_000))
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return date.toLocaleDateString()
+}
+
+function makeLocalMessage(input: Pick<Message, 'conversation_id' | 'role' | 'content'> & Partial<Message>): LocalMessage {
+  return {
+    id: `local-${crypto.randomUUID()}`,
+    parent_message_id: null,
+    created_at: new Date().toISOString(),
+    model_name: null,
+    token_count: null,
+    generation_time: null,
+    is_helpful: null,
+    feedback_text: null,
+    pending: true,
+    ...input,
+  }
+}
 
 export function ChatPage() {
   const nav = useNavigate()
+  const viewportRef = useRef<HTMLDivElement>(null)
   const [convs, setConvs] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<LocalMessage[]>([])
   const [draft, setDraft] = useState('')
   const [loadingConvs, setLoadingConvs] = useState(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
 
   const active = useMemo(() => convs.find((c) => c.id === activeId) ?? null, [convs, activeId])
@@ -36,7 +76,7 @@ export function ChatPage() {
     try {
       const data = await listConversations({ archived: false })
       setConvs(data)
-      if (!activeId && data[0]) setActiveId(data[0].id)
+      setActiveId((current) => current ?? data[0]?.id ?? null)
     } catch (e) {
       notifications.show({
         title: 'Failed to load conversations',
@@ -49,6 +89,7 @@ export function ChatPage() {
   }
 
   async function refreshMessages(conversationId: string) {
+    setLoadingMessages(true)
     try {
       const data = await listMessages(conversationId)
       setMessages(data)
@@ -58,6 +99,8 @@ export function ChatPage() {
         message: e instanceof Error ? e.message : 'Unknown error',
         color: 'red',
       })
+    } finally {
+      setLoadingMessages(false)
     }
   }
 
@@ -69,6 +112,10 @@ export function ChatPage() {
   useEffect(() => {
     if (activeId) refreshMessages(activeId)
   }, [activeId])
+
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: viewportRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, sending])
 
   async function onNewConversation() {
     try {
@@ -86,32 +133,50 @@ export function ChatPage() {
   }
 
   async function onSend() {
-    if (!activeId) return
+    if (!activeId || sending) return
     const content = draft.trim()
     if (!content) return
-    setSending(true)
+
+    const userMessage = makeLocalMessage({ conversation_id: activeId, role: 'user', content })
+    const assistantId = `local-assistant-${Date.now()}`
+    const assistantMessage = makeLocalMessage({
+      id: assistantId,
+      conversation_id: activeId,
+      role: 'assistant',
+      content: '',
+    })
+
     setDraft('')
+    setSending(true)
+    setMessages((prev) => [...prev, userMessage, assistantMessage])
+
     try {
-      const msg = await sendMessage(activeId, content)
-      setMessages((prev) => [...prev, msg])
-      // Placeholder: assistant streaming will be added once backend implements feature 11 fully.
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `local-${Date.now()}`,
-          conversation_id: activeId,
-          parent_message_id: msg.id,
-          role: 'assistant',
-          content: 'Assistant response streaming is not implemented yet. Next step: implement LLM streaming + citations on the backend.',
-          created_at: new Date().toISOString(),
-          model_name: null,
-          token_count: null,
-          generation_time: null,
-          is_helpful: null,
-          feedback_text: null,
+      await streamMessage(activeId, content, {
+        onToken: (token) => {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId ? { ...msg, content: `${msg.content}${token}` } : msg,
+            ),
+          )
         },
-      ])
+      })
+      await refreshMessages(activeId)
+      await refreshConvs()
     } catch (e) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                pending: false,
+                content:
+                  e instanceof Error
+                    ? `I could not generate a response: ${e.message}`
+                    : 'I could not generate a response.',
+              }
+            : msg,
+        ),
+      )
       notifications.show({
         title: 'Failed to send message',
         message: e instanceof Error ? e.message : 'Unknown error',
@@ -128,162 +193,167 @@ export function ChatPage() {
   }
 
   return (
-    <Box
-      style={{
-        height: '100vh',
-        display: 'grid',
-        gridTemplateColumns: '340px 1fr',
-      }}
-    >
-      <Box
-        style={{
-          borderRight: '1px solid rgba(255,255,255,0.10)',
-          padding: 16,
-          background: 'rgba(255,255,255,0.03)',
-        }}
-      >
-        <Group justify="space-between" align="center" mb="md">
-          <Title order={3} c="white">
-            Fieldforce
-          </Title>
-          <ActionIcon variant="subtle" color="gray" onClick={onLogout} title="Logout">
-            <IconLogout size={18} />
-          </ActionIcon>
+    <Box className="chat-shell">
+      <Box className="conversation-rail">
+        <Group justify="space-between" align="center" mb="lg">
+          <Group gap="sm">
+            <Box className="brand-mark">
+              <IconSparkles size={18} />
+            </Box>
+            <Box>
+              <Title order={3} className="brand-title">
+                Fieldforce
+              </Title>
+              <Text size="xs" c="dimmed">
+                RAG workspace
+              </Text>
+            </Box>
+          </Group>
+          <Tooltip label="Logout">
+            <ActionIcon variant="subtle" color="gray" onClick={onLogout} aria-label="Logout">
+              <IconLogout size={18} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
 
-        <Button
-          leftSection={<IconPlus size={16} />}
-          fullWidth
-          onClick={onNewConversation}
-          loading={loadingConvs}
-          variant="light"
-        >
+        <Button leftSection={<IconPlus size={16} />} fullWidth onClick={onNewConversation} loading={loadingConvs}>
           New conversation
         </Button>
 
-        <Divider my="md" opacity={0.2} />
+        <Group justify="space-between" mt="lg" mb="xs">
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+            Conversations
+          </Text>
+          <Tooltip label="Refresh">
+            <ActionIcon variant="subtle" color="gray" onClick={refreshConvs} loading={loadingConvs} aria-label="Refresh conversations">
+              <IconRefresh size={16} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
 
-        <ScrollArea h="calc(100vh - 150px)" type="hover">
+        <ScrollArea className="conversation-list" type="hover">
           <Stack gap="xs">
-            {convs.map((c) => (
-              <Card
-                key={c.id}
-                withBorder
-                radius="md"
-                p="sm"
-                onClick={() => setActiveId(c.id)}
-                style={{
-                  cursor: 'pointer',
-                  background: c.id === activeId ? 'rgba(36,99,235,0.18)' : 'rgba(255,255,255,0.04)',
-                  borderColor: 'rgba(255,255,255,0.10)',
-                }}
-              >
-                <Group justify="space-between" wrap="nowrap">
-                  <Text c="white" fw={600} lineClamp={1}>
-                    {c.title}
-                  </Text>
-                  <Badge variant="outline" color="gray">
-                    {c.model_name}
-                  </Badge>
-                </Group>
-                <Text size="xs" c="dimmed" mt={4} lineClamp={1}>
-                  Updated {new Date(c.updated_at).toLocaleString()}
+            {loadingConvs && convs.length === 0 ? (
+              <Box className="quiet-state">
+                <Loader size="sm" />
+                <Text size="sm" c="dimmed">
+                  Loading conversations
                 </Text>
-              </Card>
-            ))}
-          </Stack>
-        </ScrollArea>
-      </Box>
-
-      <Box style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto' }}>
-        <Box
-          style={{
-            padding: '16px 18px',
-            borderBottom: '1px solid rgba(255,255,255,0.10)',
-            background: 'rgba(255,255,255,0.02)',
-          }}
-        >
-          <Group justify="space-between">
-            <Group gap="xs">
-              <Text c="white" fw={700}>
-                {active?.title ?? 'No conversation selected'}
-              </Text>
-              {active && (
-                <Badge variant="light" color="blue">
-                  /api/v1
-                </Badge>
-              )}
-            </Group>
-          </Group>
-        </Box>
-
-        <ScrollArea p="lg" type="hover">
-          <Stack gap="sm">
-            {messages.length === 0 ? (
-              <Box>
-                <Title order={2} c="white">
-                  Ask anything.
-                </Title>
-                <Text c="gray.3" mt="sm">
-                  Start by sending a message. Next we’ll add streaming, documents, and citations.
+              </Box>
+            ) : convs.length === 0 ? (
+              <Box className="quiet-state">
+                <IconMessage size={22} />
+                <Text size="sm" c="dimmed">
+                  No conversations yet
                 </Text>
               </Box>
             ) : (
-              messages.map((m) => (
-                <Box
-                  key={m.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-                  }}
+              convs.map((c) => (
+                <Card
+                  key={c.id}
+                  withBorder
+                  className={c.id === activeId ? 'conversation-card active' : 'conversation-card'}
+                  onClick={() => setActiveId(c.id)}
                 >
-                  <Card
-                    radius="lg"
-                    p="md"
-                    style={{
-                      maxWidth: 860,
-                      background:
-                        m.role === 'user'
-                          ? 'rgba(36,99,235,0.22)'
-                          : 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.10)',
-                    }}
-                  >
-                    <Text c="white" style={{ whiteSpace: 'pre-wrap' }}>
-                      {m.content}
+                  <Group justify="space-between" wrap="nowrap" align="flex-start">
+                    <Text fw={700} lineClamp={1}>
+                      {c.title}
                     </Text>
-                    <Text size="xs" c="dimmed" mt={6}>
-                      {m.role} · {new Date(m.created_at).toLocaleTimeString()}
-                    </Text>
-                  </Card>
+                    <Badge variant="light" color="gray" size="xs">
+                      {c.model_name}
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt={6} lineClamp={1}>
+                    Updated {formatRelative(c.updated_at)}
+                  </Text>
+                </Card>
+              ))
+            )}
+          </Stack>
+        </ScrollArea>
+
+        <Divider my="md" />
+        <Group gap="xs" className="db-chip">
+          <IconDatabase size={15} />
+          <Text size="xs">Rag-LLM connected</Text>
+        </Group>
+      </Box>
+
+      <Box className="chat-main">
+        <Box className="chat-header">
+          <Group justify="space-between" align="center">
+            <Box>
+              <Group gap="xs">
+                <Title order={3}>{active?.title ?? 'Select or create a conversation'}</Title>
+                {active && (
+                  <Badge variant="light" color="teal">
+                    Live
+                  </Badge>
+                )}
+              </Group>
+              <Text c="dimmed" size="sm">
+                {active ? 'Messages are saved to PostgreSQL and streamed back from the API.' : 'Create a conversation to begin.'}
+              </Text>
+            </Box>
+            <Badge leftSection={<IconSearch size={13} />} variant="outline" color="gray">
+              /api/v1
+            </Badge>
+          </Group>
+        </Box>
+
+        <ScrollArea className="message-area" viewportRef={viewportRef} type="hover">
+          <Stack gap="md">
+            {loadingMessages ? (
+              <Box className="empty-chat">
+                <Loader />
+                <Text c="dimmed">Loading messages</Text>
+              </Box>
+            ) : messages.length === 0 ? (
+              <Box className="empty-chat">
+                <IconSparkles size={36} />
+                <Title order={2}>Start with a question.</Title>
+                <Text c="dimmed" maw={560} ta="center">
+                  Ask about a document workflow, test the chat memory, or create a quick prompt to verify the backend stream.
+                </Text>
+                <Group gap="xs" justify="center">
+                  {['Summarize the system design', 'What can this RAG app do?', 'How should we test citations?'].map((prompt) => (
+                    <Button key={prompt} variant="light" size="xs" onClick={() => setDraft(prompt)} disabled={!activeId}>
+                      {prompt}
+                    </Button>
+                  ))}
+                </Group>
+              </Box>
+            ) : (
+              messages.map((m) => (
+                <Box key={m.id} className={m.role === 'user' ? 'message-row user' : 'message-row assistant'}>
+                  <Box className="message-bubble">
+                    <Group justify="space-between" mb={6}>
+                      <Text size="xs" fw={800} tt="uppercase" c={m.role === 'user' ? 'blue.1' : 'teal.2'}>
+                        {m.role === 'user' ? 'You' : 'Assistant'}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {new Date(m.created_at).toLocaleTimeString()}
+                      </Text>
+                    </Group>
+                    <Text className="message-text">{m.content || (m.pending ? 'Thinking...' : '')}</Text>
+                  </Box>
                 </Box>
               ))
             )}
           </Stack>
         </ScrollArea>
 
-        <Box
-          style={{
-            padding: 16,
-            borderTop: '1px solid rgba(255,255,255,0.10)',
-            background: 'rgba(11,16,32,0.65)',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <Group align="flex-end" gap="sm">
-            <TextInput
+        <Box className="composer">
+          <Group align="flex-end" gap="sm" wrap="nowrap">
+            <Textarea
               value={draft}
               onChange={(e) => setDraft(e.currentTarget.value)}
-              placeholder={activeId ? 'Message…' : 'Create a conversation first…'}
+              placeholder={activeId ? 'Message Fieldforce...' : 'Create a conversation first...'}
               disabled={!activeId || sending}
-              styles={{
-                input: {
-                  background: 'rgba(255,255,255,0.05)',
-                  borderColor: 'rgba(255,255,255,0.12)',
-                  color: 'white',
-                },
-              }}
-              style={{ flex: 1 }}
+              autosize
+              minRows={1}
+              maxRows={5}
+              className="composer-input"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -291,21 +361,22 @@ export function ChatPage() {
                 }
               }}
             />
-            <ActionIcon
-              size="lg"
-              variant="filled"
-              color="blue"
-              onClick={onSend}
-              disabled={!activeId || sending || !draft.trim()}
-              loading={sending}
-              title="Send"
-            >
-              <IconSend size={18} />
-            </ActionIcon>
+            <Tooltip label="Send">
+              <ActionIcon
+                size={44}
+                variant="filled"
+                color="blue"
+                onClick={onSend}
+                disabled={!activeId || sending || !draft.trim()}
+                loading={sending}
+                aria-label="Send message"
+              >
+                <IconSend size={19} />
+              </ActionIcon>
+            </Tooltip>
           </Group>
         </Box>
       </Box>
     </Box>
   )
 }
-
