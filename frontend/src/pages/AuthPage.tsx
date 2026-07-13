@@ -141,9 +141,6 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                 >
                   {mode === 'login' ? 'Need an account?' : 'Already have an account?'}
                 </Anchor>
-                <Text c="dimmed" size="xs">
-                  API /api/v1
-                </Text>
               </Group>
             </Stack>
           </Card>

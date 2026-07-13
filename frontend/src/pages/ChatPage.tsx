@@ -568,9 +568,6 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
                 {active ? 'Messages are saved to PostgreSQL and streamed back from the API.' : 'Create a conversation to begin.'}
               </Text>
             </Box>
-            <Badge leftSection={<IconSearch size={13} />} variant="outline" color="gray">
-              /api/v1
-            </Badge>
           </Group>
         </Box>
 
