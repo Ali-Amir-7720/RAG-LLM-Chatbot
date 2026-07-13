@@ -67,6 +67,29 @@ async def list_users(
     )
     return [UserRead.model_validate(row) for row in result.mappings().all()]
 
+@router.get("/me", response_model=UserRead)
+async def get_current_user_profile(
+    session: AsyncSession = Depends(get_db_session),
+    user_id: str = Depends(get_current_user_id),
+) -> UserRead:
+    result = await session.execute(
+        text(
+            """
+            SELECT id, username, email, profile_picture, created_at, updated_at
+            FROM users
+            WHERE id = :user_id
+            """
+        ),
+        {"user_id": user_id},
+    )
+    row = result.mappings().one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+    return UserRead.model_validate(row)
+
 
 @router.get("/{user_id}", response_model=UserRead)
 async def get_user(

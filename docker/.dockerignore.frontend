@@ -1,0 +1,15 @@
+# Frontend .dockerignore
+node_modules/
+npm-debug.log
+yarn-error.log
+.git/
+.gitignore
+README.md
+.env.local
+.env.*.local
+dist/
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo

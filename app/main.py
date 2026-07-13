@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, HTTPException
 
 from app.config import get_settings
-from app.db import check_database, close_database
+from app.db import check_database, close_database, ensure_user_sessions_table
 from app.routers import auth, conversations, documents, messages, users
 
 
@@ -13,6 +13,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await ensure_user_sessions_table()
     yield
     await close_database()
 

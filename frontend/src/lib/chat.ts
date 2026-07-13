@@ -1,109 +1,106 @@
-import { API_BASE_URL, apiFetch } from './api'
-import type { Conversation, Message } from './types'
-
-export function listConversations(opts?: { archived?: boolean; limit?: number; offset?: number }) {
-  const archived = opts?.archived ?? false
-  const limit = opts?.limit ?? 10
-  const offset = opts?.offset ?? 0
-  return apiFetch<Conversation[]>(`/conversations?archived=${archived}&limit=${limit}&offset=${offset}`)
+import { API_BASE_URL, apiFetch, getAccessToken } from "./api-client";
+import type { Conversation, Message } from "./types";
+export function listConversations(opts?: {
+  archived?: boolean;
+  limit?: number;
+  offset?: number;
+}) {
+  const archived = opts?.archived ?? false;
+  const limit = opts?.limit ?? 50;
+  const offset = opts?.offset ?? 0;
+  return apiFetch<Conversation[]>(
+    `/conversations?archived=${archived}&limit=${limit}&offset=${offset}`,
+  );
 }
-
 export function createConversation(input: { title?: string; model_name: string }) {
-  return apiFetch<Conversation>('/conversations', {
-    method: 'POST',
+  return apiFetch<Conversation>("/conversations", {
+    method: "POST",
     body: JSON.stringify({
       title: input.title,
       model_name: input.model_name,
       generation_config: {},
     }),
-  })
+  });
 }
-
 export function renameConversation(conversationId: string, title: string) {
-  const params = new URLSearchParams({ title })
-  return apiFetch<Conversation>(`/conversations/${conversationId}?${params.toString()}`, {
-    method: 'PATCH',
-  })
+  const params = new URLSearchParams({ title });
+  return apiFetch<Conversation>(
+    `/conversations/${conversationId}?${params.toString()}`,
+    { method: "PATCH" },
+  );
 }
-
 export function deleteConversation(conversationId: string) {
-  return apiFetch<void>(`/conversations/${conversationId}`, {
-    method: 'DELETE',
-  })
+  return apiFetch<void>(`/conversations/${conversationId}`, { method: "DELETE" });
 }
-
 export function listMessages(conversationId: string) {
-  return apiFetch<Message[]>(`/conversations/${conversationId}/messages`)
+  return apiFetch<Message[]>(`/conversations/${conversationId}/messages`);
 }
-
-export function sendMessage(conversationId: string, content: string, parentMessageId?: string | null) {
-  return apiFetch<Message>(`/conversations/${conversationId}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({ content, parent_message_id: parentMessageId ?? null }),
-  })
-}
-
+export type StreamHandlers = {
+  onToken?: (token: string) => void;
+  onFinal?: (payload: Record<string, unknown>) => void;
+  signal?: AbortSignal;
+};
 export async function streamMessage(
   conversationId: string,
   content: string,
-  handlers: {
-    onToken?: (token: string) => void
-    onFinal?: (payload: Record<string, unknown>) => void
-  } = {},
+  handlers: StreamHandlers = {},
   parentMessageId?: string | null,
 ) {
-  const token = localStorage.getItem('access_token')
-  const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages`, {
-    method: 'POST',
-    headers: {
-      Accept: 'text/event-stream',
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  const token = getAccessToken();
+  const res = await fetch(
+    `${API_BASE_URL}/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ content, parent_message_id: parentMessageId ?? null }),
+      signal: handlers.signal,
     },
-    body: JSON.stringify({ content, parent_message_id: parentMessageId ?? null }),
-  })
-
+  );
   if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`
+    let detail = `${res.status} ${res.statusText}`;
     try {
-      const payload = await res.json()
-      detail = payload.detail ?? detail
+      const payload = await res.json();
+      detail = payload.detail ?? detail;
     } catch {
-      // Keep the status text when the response is not JSON.
+      /* keep status */
     }
-    throw new Error(detail)
+    throw new Error(detail);
   }
-
-  if (!res.body) return
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
+  if (!res.body) return;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
   while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const events = buffer.split('\n\n')
-    buffer = events.pop() ?? ''
-
-    for (const event of events) {
-      const dataLine = event
-        .split('\n')
-        .find((line) => line.startsWith('data: '))
-
-      if (!dataLine) continue
-
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // Server-Sent Events framed by blank lines
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    for (const chunk of events) {
+      const lines = chunk.split("\n").filter(Boolean);
+      let eventType = "message";
+      const dataLines: string[] = [];
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+      }
+      const dataStr = dataLines.join("\n");
+      if (!dataStr) continue;
       try {
-        const payload = JSON.parse(dataLine.slice(6))
-        if (typeof payload.token === 'string') {
-          handlers.onToken?.(payload.token)
-        } else {
-          handlers.onFinal?.(payload)
+        const payload = JSON.parse(dataStr);
+        if (eventType === "token" || typeof payload?.token === "string") {
+          handlers.onToken?.(payload.token ?? payload.delta ?? "");
+        } else if (eventType === "final" || eventType === "done" || payload?.message) {
+          handlers.onFinal?.(payload);
         }
       } catch {
-        // Ignore malformed stream frames so a single bad token does not kill the UI.
+        // Fallback: treat raw string as token
+        handlers.onToken?.(dataStr);
       }
     }
   }

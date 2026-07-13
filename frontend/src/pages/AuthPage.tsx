@@ -1,20 +1,6 @@
 import { useState } from 'react'
-import {
-  Anchor,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Container,
-  Group,
-  PasswordInput,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconArrowRight, IconDatabase, IconLock, IconMessageCircle, IconSparkles } from '@tabler/icons-react'
+import { IconArrowRight } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
 import { login, signup } from '../lib/auth'
 
@@ -30,7 +16,8 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
   const [loading, setLoading] = useState(false)
   const nav = useNavigate()
 
-  async function onSubmit() {
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
     setLoading(true)
     try {
       if (mode === 'login') {
@@ -53,99 +40,141 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
     }
   }
 
+  const canSubmit = email.trim() && password.trim() && (mode === 'login' || username.trim())
+
   return (
-    <Box className="auth-shell">
-      <Container size="lg" w="100%">
-        <Box className="auth-grid">
-          <Stack className="auth-copy" gap="xl">
-            <Badge className="status-badge" leftSection={<IconDatabase size={14} />}>
-              PostgreSQL + pgvector connected
-            </Badge>
+    <div className="auth-shell">
+      {/* ───── Left: Branding Panel ───── */}
+      <div className="auth-left">
+        <div className="auth-left-inner">
+          {/* Logo */}
+          <div className="auth-brand-row">
+            <div className="ff-logo-badge">FF</div>
+            <span className="ff-logo-text">Fieldforce</span>
+          </div>
 
-            <Stack gap="md">
-              <Title className="auth-title">Fieldforce RAG Chat</Title>
-              <Text className="auth-subtitle">
-                A focused workspace for asking questions, keeping conversation context, and grounding answers in your own documents.
-              </Text>
-            </Stack>
+          {/* Content pushed to vertical center */}
+          <div className="auth-left-center">
+            <div className="auth-status-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+              <span>PostgreSQL + pgvector connected</span>
+            </div>
 
-            <Group gap="sm" className="feature-row">
-              <Box className="feature-pill">
-                <IconMessageCircle size={18} />
+            <h1 className="auth-hero-title">
+              Answers grounded<br/>
+              in <span className="teal-accent">your documents.</span>
+            </h1>
+
+            <p className="auth-hero-subtitle">
+              A focused workspace for asking questions, keeping conversation context, and citing every source your model relies on.
+            </p>
+
+            <div className="auth-feature-row">
+              <div className="auth-feature-pill">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 <span>Threaded chat</span>
-              </Box>
-              <Box className="feature-pill">
-                <IconSparkles size={18} />
+              </div>
+              <div className="auth-feature-pill">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
                 <span>Streaming answers</span>
-              </Box>
-              <Box className="feature-pill">
-                <IconLock size={18} />
-                <span>Private sessions</span>
-              </Box>
-            </Group>
-          </Stack>
+              </div>
+              <div className="auth-feature-pill">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>JWT secured</span>
+              </div>
+            </div>
+          </div>
 
-          <Card className="auth-panel" withBorder>
-            <Stack gap="lg">
-              <Stack gap={4}>
-                <Title order={2}>{mode === 'login' ? 'Sign in' : 'Create account'}</Title>
-                <Text c="dimmed" size="sm">
-                  {mode === 'login'
-                    ? 'Continue to your conversations and document workspace.'
-                    : 'Create a workspace account to start testing the RAG flow.'}
-                </Text>
-              </Stack>
+          {/* Footer */}
+          <div className="auth-left-footer">
+            © 2026 Fieldforce · Internal preview
+          </div>
+        </div>
+      </div>
 
-              {mode === 'signup' && (
-                <TextInput
-                  label="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.currentTarget.value)}
+      {/* ───── Right: Auth Form ───── */}
+      <div className="auth-right">
+        <div className="auth-form-container">
+          <form onSubmit={onSubmit} className="auth-form">
+            <div className="auth-form-header">
+              <h2 className="auth-form-title">
+                {mode === 'login' ? 'Welcome back' : 'Create an account'}
+              </h2>
+              <p className="auth-form-subtitle">
+                {mode === 'login' ? (
+                  <><span className="teal-accent">Sign in</span> to continue to your workspace.</>
+                ) : (
+                  <>Set up your workspace to start using <span className="teal-accent">Fieldforce</span>.</>
+                )}
+              </p>
+            </div>
+
+            {mode === 'signup' && (
+              <div className="auth-field">
+                <label className="auth-label" htmlFor="auth-username">USERNAME</label>
+                <input
+                  id="auth-username"
+                  className="auth-input"
+                  type="text"
                   placeholder="ali"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
+                  autoComplete="username"
                 />
-              )}
+              </div>
+            )}
 
-              <TextInput
-                label="Email"
+            <div className="auth-field">
+              <label className="auth-label" htmlFor="auth-email">EMAIL</label>
+              <input
+                id="auth-email"
+                className="auth-input"
+                type="email"
+                placeholder="you@company.com"
                 value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-                placeholder="you@example.com"
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
+            </div>
 
-              <PasswordInput
-                label="Password"
+            <div className="auth-field">
+              <label className="auth-label" htmlFor="auth-password">PASSWORD</label>
+              <input
+                id="auth-password"
+                className="auth-input"
+                type="password"
+                placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.currentTarget.value)}
-                placeholder="Enter your password"
+                onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               />
+            </div>
 
-              <Button
-                loading={loading}
-                onClick={onSubmit}
-                fullWidth
-                rightSection={<IconArrowRight size={17} />}
-                disabled={!email.trim() || !password.trim() || (mode === 'signup' && !username.trim())}
+            <button
+              type="submit"
+              className="auth-submit-btn"
+              disabled={!canSubmit || loading}
+            >
+              <span>{loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</span>
+              {!loading && <IconArrowRight size={17} stroke={2} />}
+            </button>
+
+            <p className="auth-toggle-text">
+              {mode === 'login' ? 'New to Fieldforce? ' : 'Already have an account? '}
+              <button
+                type="button"
+                className="auth-toggle-link"
+                onClick={() => setMode((m) => (m === 'login' ? 'signup' : 'login'))}
               >
-                {mode === 'login' ? 'Login' : 'Create account'}
-              </Button>
-
-              <Group justify="space-between" gap="sm">
-                <Anchor
-                  component="button"
-                  type="button"
-                  onClick={() => setMode((m) => (m === 'login' ? 'signup' : 'login'))}
-                  size="sm"
-                >
-                  {mode === 'login' ? 'Need an account?' : 'Already have an account?'}
-                </Anchor>
-              </Group>
-            </Stack>
-          </Card>
-        </Box>
-      </Container>
-    </Box>
+                {mode === 'login' ? 'Create an account' : 'Sign in'}
+              </button>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
   )
 }
