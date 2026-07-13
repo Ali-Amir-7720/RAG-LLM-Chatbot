@@ -621,7 +621,7 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
             <Textarea
               value={draft}
               onChange={(e) => setDraft(e.currentTarget.value)}
-              placeholder={activeId ? 'Message Fieldforce...' : 'Create a conversation first...'}
+              placeholder={activeId ? 'Share Your Thoughts...' : 'Create a conversation first...'}
               disabled={!activeId || sending}
               autosize
               minRows={1}
