@@ -9,7 +9,8 @@ import {
   IconFileText,
   IconMenu2,
   IconEdit,
-  IconTrash
+  IconTrash,
+  IconLogout
 } from '@tabler/icons-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -30,13 +31,7 @@ const CONVERSATION_PAGE_SIZE = 50
 function makeLocalMessage(input: Pick<Message, 'conversation_id' | 'role' | 'content'> & Partial<Message>): LocalMessage {
   return {
     id: `local-${crypto.randomUUID()}`,
-    parent_message_id: null,
     created_at: new Date().toISOString(),
-    model_name: null,
-    token_count: null,
-    generation_time: null,
-    is_helpful: null,
-    feedback_text: null,
     pending: true,
     ...input,
   }
@@ -58,6 +53,10 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
   const [sending, setSending] = useState(false)
   const [conversationSearch, setConversationSearch] = useState('')
   const [sidebarVisible, setSidebarVisible] = useState(true)
+  const [renameDialog, setRenameDialog] = useState<{ conv: Conversation; value: string } | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<Conversation | null>(null)
+  const [dialogBusy, setDialogBusy] = useState(false)
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   const active = useMemo(() => convs.find((c) => c.id === activeId) ?? null, [convs, activeId])
   const orderedConvs = useMemo(() => {
@@ -109,6 +108,16 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
     }
   }, [messages, sending])
 
+  useEffect(() => {
+    if (renameDialog) {
+      requestAnimationFrame(() => {
+        renameInputRef.current?.focus()
+        renameInputRef.current?.select()
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renameDialog?.conv.id])
+
   async function onNewConversation() {
     try {
       const c = await createConversation({ model_name: 'default', title: 'New conversation' })
@@ -120,8 +129,14 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
     }
   }
 
-  async function onDeleteConversation(c: Conversation) {
-    if (!window.confirm(`Delete "${c.title}"?`)) return
+  function onDeleteConversation(c: Conversation) {
+    setDeleteDialog(c)
+  }
+
+  async function confirmDeleteConversation() {
+    const c = deleteDialog
+    if (!c) return
+    setDialogBusy(true)
     try {
       await deleteConversation(c.id)
       const remaining = convs.filter(x => x.id !== c.id)
@@ -130,19 +145,34 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
         setActiveId(remaining[0]?.id ?? null)
         setMessages([])
       }
+      setDeleteDialog(null)
     } catch (e) {
       notifications.show({ title: 'Error', message: 'Could not delete', color: 'red' })
+    } finally {
+      setDialogBusy(false)
     }
   }
 
-  async function onRenameConversation(c: Conversation) {
-    const title = window.prompt('Rename conversation', c.title)?.trim()
-    if (!title || title === c.title) return
+  function onRenameConversation(c: Conversation) {
+    setRenameDialog({ conv: c, value: c.title })
+  }
+
+  async function confirmRenameConversation() {
+    if (!renameDialog) return
+    const title = renameDialog.value.trim()
+    if (!title || title === renameDialog.conv.title) {
+      setRenameDialog(null)
+      return
+    }
+    setDialogBusy(true)
     try {
-      const updated = await renameConversation(c.id, title)
-      setConvs(prev => prev.map(x => x.id === c.id ? updated : x))
+      const updated = await renameConversation(renameDialog.conv.id, title)
+      setConvs(prev => prev.map(x => x.id === renameDialog.conv.id ? updated : x))
+      setRenameDialog(null)
     } catch (e) {
       notifications.show({ title: 'Error', message: 'Could not rename', color: 'red' })
+    } finally {
+      setDialogBusy(false)
     }
   }
 
@@ -237,14 +267,22 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
           ))}
         </div>
 
-        <div className="sidebar-footer" style={{ cursor: 'pointer' }} onClick={handleLogout}>
+        <div className="sidebar-footer">
           <div className="user-profile">
             {user ? (
               <>
                 <div className="user-avatar">
                   {user.username.substring(0, 2).toUpperCase()}
                 </div>
-                {user.username}
+                <span className="user-name">{user.username}</span>
+                <button
+                  className="logout-btn"
+                  onClick={handleLogout}
+                  title="Log out"
+                  aria-label="Log out"
+                >
+                  <IconLogout size={16} />
+                </button>
               </>
             ) : (
               <div style={{ visibility: 'hidden' }}>Loading...</div>
@@ -331,6 +369,72 @@ export function ChatPage({ onLogoutSuccess }: ChatPageProps) {
           </div>
         </div>
       </div>
+
+      {/* ──── Rename Dialog ──── */}
+      {renameDialog && (
+        <div className="modal-overlay" onClick={() => !dialogBusy && setRenameDialog(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">Rename conversation</h3>
+            <p className="modal-subtitle">Give this conversation a new name.</p>
+            <input
+              ref={renameInputRef}
+              className="modal-input"
+              value={renameDialog.value}
+              onChange={(e) => setRenameDialog({ ...renameDialog, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmRenameConversation() }
+                if (e.key === 'Escape') setRenameDialog(null)
+              }}
+              maxLength={120}
+              disabled={dialogBusy}
+            />
+            <div className="modal-actions">
+              <button
+                className="modal-btn modal-btn-ghost"
+                onClick={() => setRenameDialog(null)}
+                disabled={dialogBusy}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-btn modal-btn-primary"
+                onClick={confirmRenameConversation}
+                disabled={dialogBusy || !renameDialog.value.trim()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ──── Delete Dialog ──── */}
+      {deleteDialog && (
+        <div className="modal-overlay" onClick={() => !dialogBusy && setDeleteDialog(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">Delete conversation</h3>
+            <p className="modal-subtitle">
+              Are you sure you want to delete <strong>{deleteDialog.title || 'this conversation'}</strong>? This action can&apos;t be undone.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="modal-btn modal-btn-ghost"
+                onClick={() => setDeleteDialog(null)}
+                disabled={dialogBusy}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-btn modal-btn-danger"
+                onClick={confirmDeleteConversation}
+                disabled={dialogBusy}
+              >
+                {dialogBusy ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

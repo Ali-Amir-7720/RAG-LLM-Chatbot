@@ -102,7 +102,7 @@ CREATE TABLE conversation_documents (
 CREATE INDEX idx_convdocs_document ON conversation_documents(document_id);
 
 -- ============================================================
--- 5. DOCUMENT CHUNKS
+-- 7. DOCUMENT CHUNKS
 -- ============================================================
 CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -116,7 +116,7 @@ CREATE TABLE document_chunks (
 CREATE INDEX idx_chunks_document ON document_chunks(document_id);
 
 -- ============================================================
--- 6. CHUNK EMBEDDINGS
+-- 8. CHUNK EMBEDDINGS
 -- ============================================================
 CREATE TABLE chunk_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,5 +124,3 @@ CREATE TABLE chunk_embeddings (
     embedding VECTOR(1536) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE INDEX idx_chunk_embeddings_hnsw ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);

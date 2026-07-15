@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Database Schema</title>
+  <link rel="stylesheet" href="doc-style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell">
+      <div class="brand"><span class="mark" aria-hidden="true"></span><span>Fieldforce Docs</span></div>
+      <nav class="nav" aria-label="Document links"><a href="rag_chatbot_workflow_documentation.html">Workflow</a><a href="rag_llm_chatbot.html">System Design</a><a href="#overview">Overview</a><a href="#table-summary">Tables</a><a href="#relationships">Relationships</a><a href="#users">users</a><a href="#user-sessions">user_sessions</a><a href="#conversations">conversations</a><a href="#messages">messages</a><a href="#documents">documents</a></nav>
+    </div>
+  </header>
+  <div class="shell hero">
+    <p class="eyebrow">Data Design</p>
+    <h1>Database Schema</h1>
+    <p class="lead">A browser-friendly view of the database tables, their purpose, and the attributes stored in each table.</p>
+    <div class="meta-row">
+      <span class="pill">HTML version</span>
+      <span class="pill">Source: PDF documentation</span>
+      <span class="pill">Responsive layout</span>
+    </div>
+  </div>
+  <div class="shell layout">
+    <aside class="toc" aria-label="Table of contents">
+      <p class="toc-title">On this page</p>
+      <a href="#overview">Overview</a><a href="#table-summary">Tables</a><a href="#relationships">Relationships</a><a href="#users">users</a><a href="#user-sessions">user_sessions</a><a href="#conversations">conversations</a><a href="#messages">messages</a><a href="#documents">documents</a>
+    </aside>
+    <main>
+      
+      <section id="overview" class="panel">
+        <h2>Schema Overview</h2>
+        <p>This page shows the current database tables and the attributes each table stores.</p>
+        <div class="grid">
+          <div class="stat"><strong>9</strong><span>Tables documented</span></div>
+          <div class="stat"><strong>2</strong><span>PostgreSQL extensions</span></div>
+          <div class="stat"><strong>1</strong><span>Message role enum</span></div>
+        </div>
+      </section>
+      <section id="table-summary" class="band">
+        <h2>Table Summary</h2>
+        <div class="table-wrap"><table><thead><tr><th>Table</th><th>Purpose</th></tr></thead><tbody><tr><td>users</td><td>Stores account identity and login credentials.</td></tr><tr><td>user_sessions</td><td>Stores refresh-token sessions for login validity, expiry, rotation, and logout.</td></tr><tr><td>conversations</td><td>Stores chat threads owned by users.</td></tr><tr><td>messages</td><td>Stores messages inside conversations.</td></tr><tr><td>documents</td><td>Stores uploaded document metadata.</td></tr><tr><td>user_documents</td><td>Join table linking users to documents they own or can access.</td></tr><tr><td>conversation_documents</td><td>Join table scoping documents to a conversation for retrieval.</td></tr><tr><td>document_chunks</td><td>Stores readable text chunks extracted from documents.</td></tr><tr><td>chunk_embeddings</td><td>Stores pgvector embeddings for document chunks.</td></tr></tbody></table></div>
+      </section>
+      <section id="relationships" class="band">
+        <h2>How The Tables Connect</h2>
+        <p>Users own conversations and sessions. Conversations hold messages. Documents can belong to users and can be attached to conversations. Documents are split into chunks, and chunks have searchable representations.</p>
+      </section>
+      
+        <section id="users" class="doc-section">
+          <h2>users</h2>
+          <p>Stores account identity and login credentials.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>username</td><td>VARCHAR(50)</td><td>Required. Unique username.</td></tr><tr><td>email</td><td>VARCHAR(255)</td><td>Required. Unique email.</td></tr><tr><td>password_hash</td><td>TEXT</td><td>Required. Stores hashed password, not raw password.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="user-sessions" class="doc-section">
+          <h2>user_sessions</h2>
+          <p>Stores refresh-token sessions for login validity, expiry, rotation, and logout.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>user_id</td><td>UUID</td><td>Required. References users(id). Deletes cascade.</td></tr><tr><td>refresh_token</td><td>TEXT</td><td>Required. Unique token stored server-side.</td></tr><tr><td>device</td><td>VARCHAR(255)</td><td>Optional device/browser label.</td></tr><tr><td>ip_address</td><td>VARCHAR(100)</td><td>Optional IP address string.</td></tr><tr><td>is_revoked</td><td>BOOLEAN</td><td>Required. Defaults to false.</td></tr><tr><td>expires_at</td><td>TIMESTAMPTZ</td><td>Required. Session is invalid after this time.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr><tr><td>updated_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="conversations" class="doc-section">
+          <h2>conversations</h2>
+          <p>Stores chat threads owned by users.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>user_id</td><td>UUID</td><td>Required. References users(id). Deletes cascade.</td></tr><tr><td>title</td><td>VARCHAR(255)</td><td>Required. Defaults to &#x27;New conversation&#x27;.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr><tr><td>updated_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="messages" class="doc-section">
+          <h2>messages</h2>
+          <p>Stores messages inside conversations.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>conversation_id</td><td>UUID</td><td>Required. References conversations(id). Deletes cascade.</td></tr><tr><td>role</td><td>message_role</td><td>Required enum: system, user, or assistant.</td></tr><tr><td>content</td><td>TEXT</td><td>Required message text.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="documents" class="doc-section">
+          <h2>documents</h2>
+          <p>Stores uploaded document metadata.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>name</td><td>VARCHAR(255)</td><td>Required original/display name.</td></tr><tr><td>storage_path</td><td>TEXT</td><td>Required server path for the stored file.</td></tr><tr><td>mime_type</td><td>VARCHAR(100)</td><td>Required file MIME type.</td></tr><tr><td>file_size</td><td>BIGINT</td><td>Required file size in bytes.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="user-documents" class="doc-section">
+          <h2>user_documents</h2>
+          <p>Join table linking users to documents they own or can access.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>user_id</td><td>UUID</td><td>Required. References users(id). Deletes cascade.</td></tr><tr><td>document_id</td><td>UUID</td><td>Required. References documents(id). Deletes cascade.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="conversation-documents" class="doc-section">
+          <h2>conversation_documents</h2>
+          <p>Join table scoping documents to a conversation for retrieval.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>conversation_id</td><td>UUID</td><td>Required. References conversations(id). Deletes cascade.</td></tr><tr><td>document_id</td><td>UUID</td><td>Required. References documents(id). Deletes cascade.</td></tr><tr><td>added_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="document-chunks" class="doc-section">
+          <h2>document_chunks</h2>
+          <p>Stores readable text chunks extracted from documents.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>document_id</td><td>UUID</td><td>Required. References documents(id). Deletes cascade.</td></tr><tr><td>chunk_number</td><td>INTEGER</td><td>Required sequence number inside the document.</td></tr><tr><td>chunk_text</td><td>TEXT</td><td>Required extracted text for this chunk.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+        <section id="chunk-embeddings" class="doc-section">
+          <h2>chunk_embeddings</h2>
+          <p>Stores pgvector embeddings for document chunks.</p>
+          <div class="table-wrap"><table><thead><tr><th>Attribute</th><th>Type</th><th>Details</th></tr></thead><tbody><tr><td>id</td><td>UUID</td><td>Primary key. Defaults to gen_random_uuid().</td></tr><tr><td>chunk_id</td><td>UUID</td><td>Required. Unique. References document_chunks(id). Deletes cascade.</td></tr><tr><td>embedding</td><td>VECTOR(1536)</td><td>Required 1536-dimensional semantic vector.</td></tr><tr><td>created_at</td><td>TIMESTAMPTZ</td><td>Required. Defaults to now().</td></tr></tbody></table></div>
+        </section>
+        
+    
+    </main>
+  </div>
+  <footer>
+    <div class="shell">Generated from the project PDF documentation for easier reading in a browser.</div>
+  </footer>
+</body>
+</html>

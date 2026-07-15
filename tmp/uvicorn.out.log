@@ -1,0 +1,2 @@
+INFO:     127.0.0.1:63991 - "POST /api/v1/auth/signup HTTP/1.1" 201 Created
+INFO:     127.0.0.1:63991 - "POST /api/v1/conversations HTTP/1.1" 201 Created

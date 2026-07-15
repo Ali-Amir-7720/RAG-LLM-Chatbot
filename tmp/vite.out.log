@@ -1,0 +1,10 @@
+
+> frontend@0.0.0 dev
+> vite --host 127.0.0.1 --port 5173
+
+5:02:02 pm [vite] (client) Re-optimizing dependencies because vite config has changed
+
+  VITE v8.1.4  ready in 6693 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+5:02:03 pm [vite] (client) [optimizer] bundling dependencies...

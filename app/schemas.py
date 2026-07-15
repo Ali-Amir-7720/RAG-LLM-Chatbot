@@ -31,9 +31,9 @@ class UserRead(BaseModel):
     id: UUID
     username: str
     email: str
-    profile_picture: str | None
+    profile_picture: str | None = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
 
 
 class TokenPair(BaseModel):
@@ -108,10 +108,9 @@ class PasswordResetConfirm(BaseModel):
     new_password: str = Field(min_length=8, max_length=256)
 
 
-
 class ConversationCreateRequest(BaseModel):
-    model_name: str = Field(min_length=1, max_length=100)
     title: str | None = Field(default=None, max_length=255)
+    model_name: str = Field(default="default", min_length=1, max_length=100)
     system_prompt: str | None = None
     generation_config: dict = Field(default_factory=dict)
 
@@ -120,10 +119,10 @@ class ConversationRead(BaseModel):
     id: UUID
     user_id: UUID
     title: str
-    model_name: str
-    system_prompt: str | None
-    generation_config: dict
-    is_archived: bool
+    model_name: str | None = None
+    system_prompt: str | None = None
+    generation_config: dict | None = None
+    is_archived: bool | None = False
     created_at: datetime
     updated_at: datetime
 
@@ -136,14 +135,14 @@ class MessageCreateRequest(BaseModel):
 class MessageRead(BaseModel):
     id: UUID
     conversation_id: UUID
-    parent_message_id: UUID | None
+    parent_message_id: UUID | None = None
     role: str
     content: str
-    model_name: str | None
-    token_count: int | None
-    generation_time: float | None
-    is_helpful: bool | None
-    feedback_text: str | None
+    model_name: str | None = None
+    token_count: int | None = None
+    generation_time: float | None = None
+    is_helpful: bool | None = None
+    feedback_text: str | None = None
     created_at: datetime
 
 
@@ -166,13 +165,7 @@ class MessageFeedbackRequest(BaseModel):
 class DocumentRead(BaseModel):
     id: UUID
     name: str
-    description: str | None
     storage_path: str
-    content_hash: str
     mime_type: str
     file_size: int
-    status: str
-    uploaded_at: datetime
-
-
-
+    created_at: datetime

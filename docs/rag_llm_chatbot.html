@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG-LLM Chatbot System Design</title>
+  <link rel="stylesheet" href="doc-style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell">
+      <div class="brand"><span class="mark" aria-hidden="true"></span><span>Fieldforce Docs</span></div>
+      <nav class="nav" aria-label="Document links"><a href="rag_chatbot_workflow_documentation.html">Workflow</a><a href="database_schema.html">Database</a><a href="#introduction">Introduction</a><a href="#1-overview">1. Overview</a><a href="#2-authentication-account-management">2. Authentication &amp; Account Mana</a><a href="#4-server-issues-an-access-token-and-refresh-token-immediately-or-requires-email-verification-first">4. Server issues an access token</a><a href="#8-refresh-token-is-stored-in-user-sessions-along-with-device-and-ip-address-for-session-management">8. Refresh token is stored in us</a><a href="#11-server-issues-a-new-access-token-and-optionally-rotates-the-refresh-token-for-additional-security">11. Server issues a new access t</a><a href="#14-log-out-everywhere-variant-sets-is-revoked-true-on-all-sessions-belonging-to-that-user-id">14. &quot;Log out everywhere&quot; variant</a><a href="#16-server-generates-a-short-lived-single-use-reset-token-stored-hashed-similar-in-spirit-to">16. Server generates a short-liv</a><a href="#18-server-verifies-the-token-updates-password-hash-invalidates-the-reset-token-and-revokes-all">18. Server verifies the token, u</a><a href="#3-conversations">3. Conversations</a><a href="#20-server-inserts-a-conversations-row-with-a-default-title-the-chosen-model-name-and-an-empty">20. Server inserts a conversatio</a><a href="#21-title-remains-generic-until-the-first-exchange-completes">21. Title remains generic until </a><a href="#22-after-the-first-user-message-and-assistant-reply-are-stored-both-are-sent-to-the-llm-with-a-short">22. After the first user message</a><a href="#24-this-is-a-non-blocking-enhancement-conversations-remain-fully-usable-with-a-default-title-if-this">24. This is a non-blocking enhan</a><a href="#27-delete-removing-a-conversations-row-cascades-automatically-to-its-messages-attachments-and">27. Delete: removing a conversat</a><a href="#29-search-queries-run-postgres-full-text-search-against-that-index-scoped-to-the-requesting-user-s">29. Search queries run Postgres </a><a href="#30-results-link-back-to-the-specific-conversation-and-message-for-direct-navigation">30. Results link back to the spe</a><a href="#33-messages-are-formatted-into-markdown-or-converted-further-to-pdf-and-returned-as-a">33. Messages are formatted into </a></nav>
+    </div>
+  </header>
+  <div class="shell hero">
+    <p class="eyebrow">System Design</p>
+    <h1>RAG-LLM Chatbot System Design</h1>
+    <p class="lead">A polished browser version of the original system-design PDF with clearer spacing and easier section navigation.</p>
+    <div class="meta-row">
+      <span class="pill">HTML version</span>
+      <span class="pill">Source: PDF documentation</span>
+      <span class="pill">Responsive layout</span>
+    </div>
+  </div>
+  <div class="shell layout">
+    <aside class="toc" aria-label="Table of contents">
+      <p class="toc-title">On this page</p>
+      <a href="#introduction">Introduction</a><a href="#1-overview">1. Overview</a><a href="#2-authentication-account-management">2. Authentication &amp; Account Mana</a><a href="#4-server-issues-an-access-token-and-refresh-token-immediately-or-requires-email-verification-first">4. Server issues an access token</a><a href="#8-refresh-token-is-stored-in-user-sessions-along-with-device-and-ip-address-for-session-management">8. Refresh token is stored in us</a><a href="#11-server-issues-a-new-access-token-and-optionally-rotates-the-refresh-token-for-additional-security">11. Server issues a new access t</a><a href="#14-log-out-everywhere-variant-sets-is-revoked-true-on-all-sessions-belonging-to-that-user-id">14. &quot;Log out everywhere&quot; variant</a><a href="#16-server-generates-a-short-lived-single-use-reset-token-stored-hashed-similar-in-spirit-to">16. Server generates a short-liv</a><a href="#18-server-verifies-the-token-updates-password-hash-invalidates-the-reset-token-and-revokes-all">18. Server verifies the token, u</a><a href="#3-conversations">3. Conversations</a><a href="#20-server-inserts-a-conversations-row-with-a-default-title-the-chosen-model-name-and-an-empty">20. Server inserts a conversatio</a><a href="#21-title-remains-generic-until-the-first-exchange-completes">21. Title remains generic until </a><a href="#22-after-the-first-user-message-and-assistant-reply-are-stored-both-are-sent-to-the-llm-with-a-short">22. After the first user message</a><a href="#24-this-is-a-non-blocking-enhancement-conversations-remain-fully-usable-with-a-default-title-if-this">24. This is a non-blocking enhan</a><a href="#27-delete-removing-a-conversations-row-cascades-automatically-to-its-messages-attachments-and">27. Delete: removing a conversat</a><a href="#29-search-queries-run-postgres-full-text-search-against-that-index-scoped-to-the-requesting-user-s">29. Search queries run Postgres </a><a href="#30-results-link-back-to-the-specific-conversation-and-message-for-direct-navigation">30. Results link back to the spe</a><a href="#33-messages-are-formatted-into-markdown-or-converted-further-to-pdf-and-returned-as-a">33. Messages are formatted into </a>
+    </aside>
+    <main>
+      
+      <section id="summary" class="panel">
+        <h2>System At A Glance</h2>
+        <p>This page converts the original system-design PDF into a cleaner browser format. It keeps the document content but makes it easier to scan with section navigation and wider reading space.</p>
+        <div class="grid">
+          <div class="stat"><strong>Auth</strong><span>User accounts and login</span></div>
+          <div class="stat"><strong>Chat</strong><span>Conversations and messages</span></div>
+          <div class="stat"><strong>Docs</strong><span>Uploads and AI answers</span></div>
+        </div>
+      </section>
+      
+        <section id="introduction" class="doc-section">
+          <h2>Introduction</h2>
+          <p>RAG-LLM Chatbot System Design &amp; Feature Specification FastAPI · PostgreSQL · pgvector · Hugging Face LLM</p>
+        </section>
+        
+        <section id="1-overview" class="doc-section">
+          <h2>1. Overview</h2>
+          <p>This document specifies the complete feature set for the RAG-LLM chatbot platform and the workflow behind each feature. It is organized into six functional areas: authentication and account management, conversation management, messaging, file and document handling, retrieval-augmented generation, and platform operations. Every feature is mapped to the underlying PostgreSQL schema, so this document also serves as the bridge between the database design and the FastAPI implementation.</p>
+<p>The system&#x27;s core loop is: a user authenticates, starts or resumes a conversation, optionally attaches documents for the assistant to reference, exchanges messages with the LLM, and the platform tracks provenance (which model, which retrieved chunks, how many tokens) for every response.</p>
+        </section>
+        
+        <section id="2-authentication-account-management" class="doc-section">
+          <h2>2. Authentication &amp; Account Management</h2>
+          <p>2.1 Why JWT Instead of Server-Side Sessions This is a deliberate architectural decision worth explaining on its own, since it shapes the entire auth module and the user_sessions table. A traditional server-side session works by generating a random session ID at login, storing it in the database (or an in-memory store like Redis), and handing that ID to the client as a cookie. Every subsequent request requires the server to look up that ID against the store to confirm who is authenticated. This is simple to</p>
+<p>reason about, and revocation is trivial — deleting the row instantly invalidates the session. A pure JWT (JSON Web Token) approach works differently: at login, the server issues a signed token containing the user&#x27;s identity and claims directly inside the token itself (user ID, expiry, etc.). Because the token is cryptographically signed, the server can verify it on every request without touching the database at all — verification is just signature checking, which is fast and requires no round trip to Postgres. For a chatbot</p>
+<p>backend serving many small requests per conversation (send message, load history, poll status, stream tokens), avoiding a database lookup on every single authenticated request is a meaningful performance win. It also decouples authentication from the database, which matters if the system is ever split into multiple services, since any service can verify a JWT independently without querying a shared session store. The cost of pure JWT is that it has no built-in revocation. Once issued, a token remains valid until it expires,</p>
+<p>with no way for the server to force it invalid early — there is no row to delete. This means logout does not really work in a pure-JWT system, and a leaked long-lived token stays dangerous until it naturally expires. The system resolves this with a hybrid model, which is why the schema has a user_sessions table at all. Two tokens are issued at login: a short-lived JWT access token (minutes to roughly an hour), used on the majority</p>
+<p>of requests exactly like pure JWT, with no database lookup; and a long-lived refresh token, which is a random opaque string stored server-side in user_sessions. The refresh token is checked against the database only when the access token expires — occasionally, not on every request — at which point the server confirms the session is not revoked and not past its expiry before issuing a new access token. This hybrid gives the system JWT&#x27;s main advantage, avoiding a database hit on nearly every request, while</p>
+<p>still supporting real logout, &quot;log out of all devices,&quot; and session listing, since is_revoked can be flipped on the stored refresh token at any time. The is_revoked, device, and ip_address columns exist specifically to support this: they let a user see and manage active sessions, and let the server kill one specific session without logging the user out everywhere. A pure server-side session model would be simpler to reason about and</p>
+<p>would be a reasonable choice for a smaller, single-service application, but the hybrid was chosen here because it scales better under load while preserving the control that pure JWT gives up. 2.2 Features 2.2 Sign Up Registers a new user account with a hashed password. Workflow</p>
+        </section>
+        
+        <section id="4-server-issues-an-access-token-and-refresh-token-immediately-or-requires-email-verification-first" class="doc-section">
+          <h2>4. Server issues an access token and refresh token immediately, or requires email verification first,</h2>
+          <p>depending on product requirements. Tables involved: users, user_sessions 2.3 Login Authenticates an existing user and starts a session. Workflow</p>
+        </section>
+        
+        <section id="8-refresh-token-is-stored-in-user-sessions-along-with-device-and-ip-address-for-session-management" class="doc-section">
+          <h2>8. Refresh token is stored in user_sessions along with device and ip_address for session management.</h2>
+          <p>Tables involved: users, user_sessions 2.4 Token Refresh Exchanges a valid refresh token for a new access token without re-entering credentials. Workflow</p>
+        </section>
+        
+        <section id="11-server-issues-a-new-access-token-and-optionally-rotates-the-refresh-token-for-additional-security" class="doc-section">
+          <h2>11. Server issues a new access token (and optionally rotates the refresh token for additional security).</h2>
+          <p>Tables involved: user_sessions 2.5 Logout Ends a session, either on one device or everywhere. Workflow</p>
+        </section>
+        
+        <section id="14-log-out-everywhere-variant-sets-is-revoked-true-on-all-sessions-belonging-to-that-user-id" class="doc-section">
+          <h2>14. &quot;Log out everywhere&quot; variant sets is_revoked = true on all sessions belonging to that user_id.</h2>
+          <p>Tables involved: user_sessions 2.6 Password Reset / Account Recovery Lets a user regain access without knowing their current password. Workflow</p>
+        </section>
+        
+        <section id="16-server-generates-a-short-lived-single-use-reset-token-stored-hashed-similar-in-spirit-to" class="doc-section">
+          <h2>16. Server generates a short-lived, single-use reset token (stored hashed, similar in spirit to</h2>
+          <p>user_sessions) and emails it to the user.</p>
+        </section>
+        
+        <section id="18-server-verifies-the-token-updates-password-hash-invalidates-the-reset-token-and-revokes-all" class="doc-section">
+          <h2>18. Server verifies the token, updates password_hash, invalidates the reset token, and revokes all</h2>
+          <p>existing user_sessions rows for that user, forcing re-login everywhere in case the account was compromised. Tables involved: users, password_reset_tokens (new table), user_sessions</p>
+        </section>
+        
+        <section id="3-conversations" class="doc-section">
+          <h2>3. Conversations</h2>
+          <p>3.1 Create Conversation Starts a new chat thread for a user. Workflow</p>
+        </section>
+        
+        <section id="20-server-inserts-a-conversations-row-with-a-default-title-the-chosen-model-name-and-an-empty" class="doc-section">
+          <h2>20. Server inserts a conversations row with a default title, the chosen model_name, and an empty</h2>
+          <p>generation_config.</p>
+        </section>
+        
+        <section id="21-title-remains-generic-until-the-first-exchange-completes" class="doc-section">
+          <h2>21. Title remains generic until the first exchange completes.</h2>
+          <p>Tables involved: conversations 3.2 Auto-Generate Conversation Title Produces a short, descriptive title after the first exchange instead of leaving it generic. Workflow</p>
+        </section>
+        
+        <section id="22-after-the-first-user-message-and-assistant-reply-are-stored-both-are-sent-to-the-llm-with-a-short" class="doc-section">
+          <h2>22. After the first user message and assistant reply are stored, both are sent to the LLM with a short</h2>
+          <p>summarization prompt.</p>
+        </section>
+        
+        <section id="24-this-is-a-non-blocking-enhancement-conversations-remain-fully-usable-with-a-default-title-if-this" class="doc-section">
+          <h2>24. This is a non-blocking enhancement — conversations remain fully usable with a default title if this</h2>
+          <p>step is skipped or delayed. Tables involved: conversations, messages 3.3 List / Archive / Delete Conversations Standard lifecycle management for a user&#x27;s chat history. Workflow</p>
+        </section>
+        
+        <section id="27-delete-removing-a-conversations-row-cascades-automatically-to-its-messages-attachments-and" class="doc-section">
+          <h2>27. Delete: removing a conversations row cascades automatically to its messages, attachments, and</h2>
+          <p>conversation_documents links via foreign key constraints, so no manual cleanup step is required. Tables involved: conversations, messages, attachments, conversation_documents 3.4 Full-Text Search Across Conversations Lets a user find a past conversation by content rather than scrolling. Workflow</p>
+        </section>
+        
+        <section id="29-search-queries-run-postgres-full-text-search-against-that-index-scoped-to-the-requesting-user-s" class="doc-section">
+          <h2>29. Search queries run Postgres full-text search against that index, scoped to the requesting user&#x27;s</h2>
+          <p>conversations.</p>
+        </section>
+        
+        <section id="30-results-link-back-to-the-specific-conversation-and-message-for-direct-navigation" class="doc-section">
+          <h2>30. Results link back to the specific conversation and message for direct navigation.</h2>
+          <p>Tables involved: messages 3.5 Export a Conversation Downloads a conversation as a portable file. Workflow</p>
+        </section>
+        
+        <section id="33-messages-are-formatted-into-markdown-or-converted-further-to-pdf-and-returned-as-a" class="doc-section">
+          <h2>33. Messages are formatted into Markdown (or converted further to PDF) and returned as a</h2>
+          <p>downloadable file. Tables involved: conversations, messages</p>
+        </section>
+        
+      <section id="source" class="band">
+        <h2>Source Note</h2>
+        <p class="source-note">This HTML page was generated from rag_llm_chatbot.pdf. Some dense PDF line breaks were cleaned for browser readability.</p>
+      </section>
+    
+    </main>
+  </div>
+  <footer>
+    <div class="shell">Generated from the project PDF documentation for easier reading in a browser.</div>
+  </footer>
+</body>
+</html>

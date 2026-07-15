@@ -11,10 +11,15 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
     port: 5173,
+    strictPort: true,
     proxy: {
-      // Convenience: frontend can call /api/v1/* without CORS in dev
-      '/api/v1': 'http://localhost:8000',
+      // Use IPv4 explicitly — `localhost` can resolve to ::1 on Windows and hang
+      '/api/v1': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

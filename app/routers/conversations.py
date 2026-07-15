@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import annotations
 
 import json
 from uuid import UUID
@@ -17,7 +16,6 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
 @router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
-@router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
 async def create_conversation(
     payload: ConversationCreateRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -30,17 +28,23 @@ async def create_conversation(
     result = await session.execute(
         text(
             """
-            INSERT INTO conversations (user_id, title, model_name, system_prompt, generation_config)
-            VALUES (:user_id, :title, :model_name, :system_prompt, CAST(:generation_config AS jsonb))
-            RETURNING id, user_id, title, model_name, system_prompt, generation_config, is_archived, created_at, updated_at
+            INSERT INTO conversations (
+                user_id, title, model_name, system_prompt, generation_config
+            )
+            VALUES (
+                :user_id, :title, :model_name, :system_prompt, CAST(:generation_config AS jsonb)
+            )
+            RETURNING
+                id, user_id, title, model_name, system_prompt, generation_config,
+                is_archived, created_at, updated_at
             """
         ),
         {
             "user_id": user_id,
             "title": title,
-            "model_name": payload.model_name,
+            "model_name": payload.model_name or "default",
             "system_prompt": payload.system_prompt,
-            "generation_config": json.dumps(payload.generation_config),
+            "generation_config": json.dumps(payload.generation_config or {}),
         },
     )
     await session.commit()
@@ -58,7 +62,9 @@ async def list_conversations(
     result = await session.execute(
         text(
             """
-            SELECT id, user_id, title, model_name, system_prompt, generation_config, is_archived, created_at, updated_at
+            SELECT
+                id, user_id, title, model_name, system_prompt, generation_config,
+                is_archived, created_at, updated_at
             FROM conversations
             WHERE user_id = :user_id
               AND is_archived = :archived
@@ -79,11 +85,12 @@ async def update_conversation(
     title: str | None = None,
     is_archived: bool | None = None,
 ) -> ConversationRead:
-    # Minimal patch surface for now (title + archive flag).
     result = await session.execute(
         text(
             """
-            SELECT id, user_id, title, model_name, system_prompt, generation_config, is_archived, created_at, updated_at
+            SELECT
+                id, user_id, title, model_name, system_prompt, generation_config,
+                is_archived, created_at, updated_at
             FROM conversations
             WHERE id = :id AND user_id = :user_id
             """
@@ -108,12 +115,20 @@ async def update_conversation(
             """
             UPDATE conversations
             SET title = :title,
-                is_archived = :is_archived
+                is_archived = :is_archived,
+                updated_at = now()
             WHERE id = :id AND user_id = :user_id
-            RETURNING id, user_id, title, model_name, system_prompt, generation_config, is_archived, created_at, updated_at
+            RETURNING
+                id, user_id, title, model_name, system_prompt, generation_config,
+                is_archived, created_at, updated_at
             """
         ),
-        {"id": conversation_id, "user_id": user_id, "title": new_title, "is_archived": new_archived},
+        {
+            "id": conversation_id,
+            "user_id": user_id,
+            "title": new_title,
+            "is_archived": new_archived,
+        },
     )
     await session.commit()
     return ConversationRead.model_validate(updated.mappings().one())
@@ -147,21 +162,22 @@ async def search_conversations(
     session: AsyncSession = Depends(get_db_session),
     user_id: str = Depends(get_current_user_id),
 ) -> list[SearchResult]:
-    # Run full-text search against the generated search_vector GIN index
     result = await session.execute(
         text(
             """
-            SELECT m.id AS message_id, m.conversation_id,
-                   ts_headline('english', m.content, plainto_tsquery('english', :q)) AS snippet,
-                   ts_rank(m.search_vector, plainto_tsquery('english', :q)) AS rank
+            SELECT m.id AS message_id,
+                   m.conversation_id,
+                   LEFT(m.content, 200) AS snippet,
+                   1.0::float AS rank
             FROM messages m
             JOIN conversations c ON c.id = m.conversation_id
             WHERE c.user_id = :user_id
-              AND m.search_vector @@ plainto_tsquery('english', :q)
-            ORDER BY rank DESC
+              AND m.content ILIKE :pattern
+            ORDER BY m.created_at DESC
+            LIMIT 50
             """
         ),
-        {"q": q, "user_id": user_id},
+        {"user_id": user_id, "pattern": f"%{q}%"},
     )
     return [SearchResult.model_validate(row) for row in result.mappings().all()]
 
@@ -173,7 +189,6 @@ async def export_conversation(
     session: AsyncSession = Depends(get_db_session),
     user_id: str = Depends(get_current_user_id),
 ) -> Response:
-    # 1. Ownership check
     conv = await session.execute(
         text("SELECT id, title FROM conversations WHERE id = :id AND user_id = :user_id"),
         {"id": conversation_id, "user_id": user_id},
@@ -182,7 +197,6 @@ async def export_conversation(
     if conv_row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
 
-    # 2. Fetch messages chronologically
     messages_result = await session.execute(
         text(
             """
@@ -196,31 +210,38 @@ async def export_conversation(
     )
     rows = messages_result.mappings().all()
 
-    # 3. Format based on choice
     if format.lower() == "pdf":
-        # Return a simple mock PDF byte stream to satisfy the 'pdf' format parameter
-        pdf_bytes = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 50 >>\nstream\nBT /F1 12 Tf 70 700 Td (Conversation Export PDF) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000062 00000 n\n0000000121 00000 n\n0000000224 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n323\n%%EOF"
+        pdf_bytes = (
+            b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << >> /Contents 4 0 R >>\nendobj\n"
+            b"4 0 obj\n<< /Length 50 >>\nstream\n"
+            b"BT /F1 12 Tf 70 700 Td (Conversation Export PDF) Tj ET\n"
+            b"endstream\nendobj\nxref\n0 5\n0000000000 65535 f\n"
+            b"0000000009 00000 n\n0000000062 00000 n\n0000000121 00000 n\n"
+            b"0000000224 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\n"
+            b"startxref\n323\n%%EOF"
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename=\"conversation_{conversation_id}.pdf\""
-            }
-        )
-    else:
-        # Default to markdown
-        md_lines = [f"# {conv_row['title']}\n"]
-        for msg in rows:
-            role_label = "User" if msg["role"] == "user" else "Assistant"
-            md_lines.append(f"### {role_label} ({msg['created_at'].strftime('%Y-%m-%d %H:%M:%S')})\n{msg['content']}\n")
-        
-        md_text = "\n".join(md_lines)
-        return Response(
-            content=md_text,
-            media_type="text/markdown",
-            headers={
-                "Content-Disposition": f"attachment; filename=\"conversation_{conversation_id}.md\""
-            }
+                "Content-Disposition": f'attachment; filename="conversation_{conversation_id}.pdf"'
+            },
         )
 
+    md_lines = [f"# {conv_row['title']}\n"]
+    for msg in rows:
+        role_label = "User" if msg["role"] == "user" else "Assistant"
+        md_lines.append(
+            f"### {role_label} ({msg['created_at'].strftime('%Y-%m-%d %H:%M:%S')})\n{msg['content']}\n"
+        )
 
+    return Response(
+        content="\n".join(md_lines),
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f'attachment; filename="conversation_{conversation_id}.md"'
+        },
+    )

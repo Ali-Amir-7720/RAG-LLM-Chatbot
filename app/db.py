@@ -73,6 +73,23 @@ async def ensure_user_sessions_table() -> None:
                 "CREATE INDEX IF NOT EXISTS idx_user_sessions_refresh ON user_sessions(refresh_token)"
             )
         )
+        await connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS conversation_documents (
+                    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                    added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (conversation_id, document_id)
+                )
+                """
+            )
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_convdocs_document ON conversation_documents(document_id)"
+            )
+        )
 
 
 async def close_database() -> None:

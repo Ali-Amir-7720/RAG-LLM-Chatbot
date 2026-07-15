@@ -3,29 +3,33 @@ export type TokenPair = {
   refresh_token: string;
   token_type: "bearer";
 };
+
 export type User = {
   id: string;
   username: string;
   email: string;
   profile_picture?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
 };
+
 export type AuthResponse = {
   user: User;
   tokens: TokenPair;
 };
+
 export type Conversation = {
   id: string;
   user_id: string;
   title: string;
-  model_name: string;
+  model_name?: string | null;
   system_prompt?: string | null;
-  generation_config: Record<string, unknown>;
-  is_archived: boolean;
+  generation_config?: Record<string, unknown> | null;
+  is_archived?: boolean | null;
   created_at: string;
   updated_at: string;
 };
+
 export type Message = {
   id: string;
   conversation_id: string;
